@@ -64,6 +64,8 @@ services:
           property: password
       - key: APP_KEY
         sync: false
+      - key: APP_URL
+        sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: FRONTEND_URL

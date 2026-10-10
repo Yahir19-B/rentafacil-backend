@@ -24,14 +24,20 @@ class ReporteController extends Controller
     public function store(Request $request) {
         $data = $request->validate([
             'propiedad_id' => 'required|exists:propiedades,id',
-            'motivo' => 'required|string',
-            'descripcion' => 'nullable|string'
+            'motivo' => 'required|string|max:255',
+            'descripcion' => 'required|string|max:2000',
+            'evidencias' => 'nullable|array|max:5',
+            'evidencias.*.url' => 'required|string|max:2048',
+            'evidencias.*.firebase_path' => 'required|string|max:1000',
         ]);
 
         $data['user_id'] = Auth::id();
         $data['estado'] = 'pendiente';
 
-        return response()->json(Reporte::create($data), 201);
+        return response()->json(
+            Reporte::create($data)->load(['user', 'propiedad.user']),
+            201
+        );
     }
 
     public function show(Request $request, Reporte $reporte) {

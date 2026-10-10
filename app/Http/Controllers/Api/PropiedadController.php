@@ -123,6 +123,7 @@ public function index(Request $request)
     $query = Propiedad::query()
         ->with([
             'categoria',
+            'user',
 
             'imagenes' => function ($query) {
                 $query

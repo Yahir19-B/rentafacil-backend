@@ -12,7 +12,12 @@ class Reporte extends Model
         'propiedad_id',
         'motivo',
         'descripcion',
+        'evidencias',
         'estado'
+    ];
+
+    protected $casts = [
+        'evidencias' => 'array',
     ];
 
     public function user(){

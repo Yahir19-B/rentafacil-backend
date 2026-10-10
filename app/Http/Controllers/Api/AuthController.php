@@ -608,16 +608,33 @@ public function verifyEmail(
     }
 
     // Google
-    public function googleRedirect()
+    public function googleRedirect(Request $request)
     {
         /** @var \Laravel\Socialite\Two\AbstractProvider $provider */
         $provider = Socialite::driver('google');
 
-        return $provider->stateless()->redirect();
+        // La app Android no comparte origen con el sitio web (corre en
+        // http://localhost dentro del WebView), así que necesita volver por
+        // un deep link en vez del redirect normal a FRONTEND_URL. Como
+        // ->stateless() no guarda sesión, viajamos el "platform" en el
+        // parámetro state, que Google reenvía tal cual al callback.
+        $platform = $request->query('platform', 'web');
+
+        return $provider->stateless()
+            ->with(['state' => $platform])
+            ->redirect();
     }
 
-    public function googleCallback()
+    public function googleCallback(Request $request)
     {
+    $platform = $request->query('state', 'web');
+    $redirectBase = $platform === 'android'
+        ? 'com.rentafacil.app://auth/callback'
+        : env('FRONTEND_URL') . '/auth/callback';
+    $loginErrorBase = $platform === 'android'
+        ? 'com.rentafacil.app://auth/login'
+        : env('FRONTEND_URL') . '/login';
+
     try {
         /** @var \Laravel\Socialite\Two\AbstractProvider $provider */
         $provider = Socialite::driver('google');
@@ -641,21 +658,26 @@ public function verifyEmail(
                 'role_id' => $role->id,
                 'status' => 'activo',
                 'strikes' => 0,
+                // Google ya verificó la propiedad del correo; no tiene
+                // sentido pedirle a este usuario que confirme un correo
+                // de verificación que nunca le vamos a mandar.
+                'email_verified_at' => now(),
             ]);
         } else {
             $user->update([
                 'google_id' => $user->google_id ?: $googleUser->getId(),
                 'foto_perfil' => $user->foto_perfil ?: $googleUser->getAvatar(),
                 'auth_provider' => $user->auth_provider ?: 'google',
+                'email_verified_at' => $user->email_verified_at ?: now(),
             ]);
         }
 
         if ($user->status === 'baneado') {
-            return redirect(env('FRONTEND_URL') . '/login?error=cuenta_baneada');
+            return redirect($loginErrorBase . '?error=cuenta_baneada');
         }
 
         if ($user->status === 'suspendido') {
-            return redirect(env('FRONTEND_URL') . '/login?error=cuenta_suspendida');
+            return redirect($loginErrorBase . '?error=cuenta_suspendida');
         }
 
         $user->load('role');
@@ -663,14 +685,14 @@ public function verifyEmail(
         $token = $user->createToken('api-token')->plainTextToken;
 
         return redirect(
-            env('FRONTEND_URL') .
-            '/auth/callback?token=' . urlencode($token) .
+            $redirectBase .
+            '?token=' . urlencode($token) .
             '&role=' . urlencode($user->role->nombre) .
             '&terminos_aceptados=' . ($user->terminos_aceptados_at ? '1' : '0')
         );
 
     } catch (\Throwable $e) {
-        return redirect(env('FRONTEND_URL') . '/login?error=google_login_failed');
+        return redirect($loginErrorBase . '?error=google_login_failed');
     }
 }
 }

@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers\Api;
+
+use App\Services\FiltroPalabrasService;
 use Illuminate\Auth\Events\Verified;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
@@ -10,6 +12,7 @@ use App\Notifications\CodigoReactivacionNotification;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -138,7 +141,7 @@ public function verifyEmail(
     string $hash
 ) {
     $frontendUrl = rtrim(
-        env('FRONTEND_URL', 'http://localhost:8100'),
+        config('app.frontend_url'),
         '/'
     );
 
@@ -308,12 +311,63 @@ public function verifyEmail(
             'fecha_nacimiento' => 'nullable|date',
             'es_estudiante' => 'nullable|boolean',
             'foto_perfil' => 'nullable|string|max:5000',
+
+            // Muro público
+            'biografia' => 'nullable|string|max:300',
+            'foto_portada' => 'nullable|string|max:2048',
+            'ciudad' => 'nullable|string|max:100',
+            'privacidad_perfil' => 'sometimes|array',
+            'privacidad_perfil.visibilidad_muro' => 'sometimes|in:todos,amigos',
+            'privacidad_perfil.mostrar_email' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_telefono' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_ciudad' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_estudiante' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_miembro_desde' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_propiedades' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_avisos' => 'sometimes|boolean',
+            'privacidad_perfil.mostrar_amigos' => 'sometimes|boolean',
         ]);
+
+        // La biografía y la ciudad se ven en el muro público: mismo
+        // filtro de lenguaje que las publicaciones.
+        $filtro = app(FiltroPalabrasService::class);
+
+        foreach (['biografia' => 'La biografía', 'ciudad' => 'La ciudad'] as $campo => $etiqueta) {
+            if (!empty($data[$campo]) && !$filtro->esValido($data[$campo])) {
+                return response()->json([
+                    'message' => "{$etiqueta} contiene lenguaje no permitido.",
+                    'errors' => [$campo => ["{$etiqueta} contiene lenguaje no permitido."]],
+                ], 422);
+            }
+        }
+
+        // Solo se cambian las opciones enviadas; el resto se conserva.
+        if (array_key_exists('privacidad_perfil', $data)) {
+            $data['privacidad_perfil'] = array_merge(
+                $user->privacidad,
+                array_intersect_key(
+                    $data['privacidad_perfil'],
+                    User::PRIVACIDAD_PREDETERMINADA
+                )
+            );
+        }
+
+        $cambioCorreo = isset($data['email'])
+            && strcasecmp($data['email'], $user->email) !== 0;
 
         $user->update($data);
 
+        if ($cambioCorreo) {
+            // El correo nuevo se debe confirmar antes de volver a iniciar sesión.
+            // email_verified_at no es fillable, por eso forceFill.
+            $user->forceFill(['email_verified_at' => null])->save();
+            $user->sendEmailVerificationNotification();
+        }
+
         return response()->json([
-            'message' => 'Perfil actualizado correctamente',
+            'message' => $cambioCorreo
+                ? 'Perfil actualizado. Te enviamos un enlace a tu nuevo correo para verificarlo.'
+                : 'Perfil actualizado correctamente',
             'user' => $user->load('role'),
         ]);
     }
@@ -447,7 +501,9 @@ public function verifyEmail(
             : 'Si crees que esto es un error, contacta al equipo de soporte.';
 
         return [
-            'message' => 'Tu cuenta fue suspendida por acumular infracciones al reglamento. '
+            'message' => ($sancion->admin_id && $sancion->motivo
+                    ? "Un administrador suspendió tu cuenta. Motivo: {$sancion->motivo}. "
+                    : 'Tu cuenta fue suspendida por acumular infracciones al reglamento. ')
                 . 'Se reactivará automáticamente en ' . $this->diasRestantes($sancion) . '. '
                 . $mensajeSoporte,
             'motivo' => 'infracciones',
@@ -630,10 +686,10 @@ public function verifyEmail(
     $platform = $request->query('state', 'web');
     $redirectBase = $platform === 'android'
         ? 'com.rentafacil.app://auth/callback'
-        : env('FRONTEND_URL') . '/auth/callback';
+        : config('app.frontend_url') . '/auth/callback';
     $loginErrorBase = $platform === 'android'
         ? 'com.rentafacil.app://auth/login'
-        : env('FRONTEND_URL') . '/login';
+        : config('app.frontend_url') . '/login';
 
     try {
         /** @var \Laravel\Socialite\Two\AbstractProvider $provider */
@@ -669,6 +725,8 @@ public function verifyEmail(
                 'foto_perfil' => $user->foto_perfil ?: $googleUser->getAvatar(),
                 'auth_provider' => $user->auth_provider ?: 'google',
                 'email_verified_at' => $user->email_verified_at ?: now(),
+                // Cuentas viejas sin rol: sin esto el redirect truena al leer role->nombre.
+                'role_id' => $user->role_id ?: $role->id,
             ]);
         }
 
@@ -678,6 +736,12 @@ public function verifyEmail(
 
         if ($user->status === 'suspendido') {
             return redirect($loginErrorBase . '?error=cuenta_suspendida');
+        }
+
+        // Google ya verificó el correo; email_verified_at no es fillable,
+        // así que create()/update() lo ignoraban.
+        if (!$user->email_verified_at) {
+            $user->forceFill(['email_verified_at' => now()])->save();
         }
 
         $user->load('role');
@@ -692,6 +756,8 @@ public function verifyEmail(
         );
 
     } catch (\Throwable $e) {
+        Log::error('Fallo el login con Google: ' . $e->getMessage(), ['exception' => $e]);
+
         return redirect($loginErrorBase . '?error=google_login_failed');
     }
 }

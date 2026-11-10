@@ -30,7 +30,7 @@ class CodigoReactivacionNotification extends Notification implements ShouldQueue
                 'user' => $notifiable,
                 'codigo' => $this->codigo,
                 'minutosVigencia' => $this->minutosVigencia,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
             ]);
     }
 

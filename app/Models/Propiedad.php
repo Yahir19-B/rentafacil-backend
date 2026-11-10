@@ -16,6 +16,7 @@ class Propiedad extends Model
         'precio',
         'deposito',
         'direccion',
+        'colonia',
         'ciudad',
         'estado',
         'codigo_postal',
@@ -23,9 +24,12 @@ class Propiedad extends Model
         'longitud',
         'restricciones',
         'servicios',
+        'video_url',
+        'video_path',
         'estado_publicacion',
         'motivo_rechazo',
         'disponible',
+        'rentada_at',
     ];
 
     protected $casts = [
@@ -37,6 +41,7 @@ class Propiedad extends Model
         'servicios' => 'array',
         'disponible' => 'boolean',
         'disponible_desde' => 'datetime',
+        'rentada_at' => 'datetime',
     ];
 
     /**
@@ -55,6 +60,8 @@ class Propiedad extends Model
 
             if ($propiedad->isDirty('disponible') && $propiedad->disponible) {
                 $propiedad->disponible_desde = now();
+                // Volver a habilitarla significa que el espacio quedó libre otra vez.
+                $propiedad->rentada_at = null;
             }
         });
     }
@@ -62,6 +69,12 @@ class Propiedad extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Rentas marcadas por el propietario (proceso "Marcar como rentado"). */
+    public function rentas()
+    {
+        return $this->hasMany(Renta::class);
     }
 
     public function categoria()

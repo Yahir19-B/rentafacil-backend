@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Auth;
 
 class PropiedadController extends Controller
 {
+    /** Los videos solo pueden venir del Firebase Storage de la app. */
+    private const FIREBASE_STORAGE_URL = 'https://firebasestorage.googleapis.com/';
+
     public function __construct(
         private readonly FiltroPalabrasService $filtroPalabras,
         private readonly ModeracionImagenService $moderacionImagen,
@@ -151,6 +154,7 @@ public function index(Request $request)
         $q->where('titulo', 'like', "%{$buscar}%")
             ->orWhere('descripcion', 'like', "%{$buscar}%")
             ->orWhere('direccion', 'like', "%{$buscar}%")
+            ->orWhere('colonia', 'like', "%{$buscar}%")
             ->orWhere('ciudad', 'like', "%{$buscar}%")
             ->orWhere('estado', 'like', "%{$buscar}%");
     });
@@ -181,6 +185,32 @@ public function index(Request $request)
             'like',
             '%' . trim($request->input('ciudad')) . '%'
         );
+    }
+
+    if ($request->filled('colonia')) {
+        $query->where(
+            'colonia',
+            'like',
+            '%' . trim($request->input('colonia')) . '%'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Zona visible del mapa (lat_min, lat_max, lng_min, lng_max)
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->filled(['lat_min', 'lat_max', 'lng_min', 'lng_max'])) {
+        $query
+            ->whereBetween('latitud', [
+                (float) $request->input('lat_min'),
+                (float) $request->input('lat_max'),
+            ])
+            ->whereBetween('longitud', [
+                (float) $request->input('lng_min'),
+                (float) $request->input('lng_max'),
+            ]);
     }
 
     
@@ -272,14 +302,19 @@ foreach ($restricciones as $restriccion) {
         'precio' => 'required|numeric|min:0',
         'deposito' => 'nullable|numeric|min:0',
         'direccion' => 'required|string|max:255',
+        'colonia' => 'nullable|string|max:150',
         'ciudad' => 'required|string|max:100',
         'estado' => 'required|string|max:100',
         'codigo_postal' => 'nullable|string|max:10',
-        'latitud' => 'nullable|numeric',
-        'longitud' => 'nullable|numeric',
+        'latitud' => 'nullable|numeric|between:-90,90',
+        'longitud' => 'nullable|numeric|between:-180,180',
         'restricciones' => 'nullable|array',
         'servicios' => 'nullable|array',
         'disponible' => 'nullable|boolean',
+
+        // Video opcional ya subido a Firebase (MP4/WEBM, hasta 50 MB).
+        'video_url' => ['nullable', 'string', 'max:2048', 'starts_with:' . self::FIREBASE_STORAGE_URL],
+        'video_path' => 'nullable|required_with:video_url|string|max:1000',
 
         // Imágenes previamente subidas a Firebase
         'imagenes' => 'required|array|min:1|max:10',
@@ -432,17 +467,27 @@ public function registrarVista(Request $request, Propiedad $propiedad)
             'precio' => 'sometimes|numeric|min:0',
             'deposito' => 'nullable|numeric|min:0',
             'direccion' => 'sometimes|string|max:255',
+            'colonia' => 'nullable|string|max:150',
             'ciudad' => 'sometimes|string|max:100',
             'estado' => 'sometimes|string|max:100',
             'codigo_postal' => 'nullable|string|max:10',
-            'latitud' => 'nullable|numeric',
-            'longitud' => 'nullable|numeric',
+            'latitud' => 'nullable|numeric|between:-90,90',
+            'longitud' => 'nullable|numeric|between:-180,180',
             'restricciones' => 'nullable|array',
             'servicios' => 'nullable|array',
             'estado_publicacion' => 'sometimes|in:en_revision,aprobada,rechazada',
             'motivo_rechazo' => 'nullable|string',
             'disponible' => 'boolean',
+
+            // Enviar video_url = null quita el video de la publicación.
+            'video_url' => ['nullable', 'string', 'max:2048', 'starts_with:' . self::FIREBASE_STORAGE_URL],
+            'video_path' => 'nullable|required_with:video_url|string|max:1000',
         ]);
+
+        if (array_key_exists('video_url', $data) && empty($data['video_url'])) {
+            $data['video_url'] = null;
+            $data['video_path'] = null;
+        }
 
         $reencolarModeracionImagen = false;
 
@@ -539,7 +584,11 @@ public function registrarVista(Request $request, Propiedad $propiedad)
                     'categoria',
                     'imagenes',
                 ])
-                ->withCount(['vistas as vistas'])
+                ->withCount([
+                    'vistas as vistas',
+                    // "Marcar como rentado" esperando la confirmación del inquilino.
+                    'rentas as rentas_pendientes_count' => fn ($q) => $q->where('estado', 'pendiente'),
+                ])
                 ->where('user_id', $usuario->id)
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')

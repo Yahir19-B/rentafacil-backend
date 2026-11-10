@@ -34,7 +34,7 @@ class ImagenSospechosaNotification extends Notification implements ShouldQueue
                 'admin' => $notifiable,
                 'propiedad' => $this->propiedad,
                 'motivo' => $this->motivo,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
             ]);
     }
 

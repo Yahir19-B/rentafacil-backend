@@ -1,0 +1,23 @@
+# Lo que NO se sube a Cloud Run (el Dockerfile instala sus dependencias).
+.gcloudignore
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.phpunit.result.cache
+.DS_Store
+
+# Dependencias locales (y copias apartadas por iCloud)
+/vendor
+/vendor.nosync
+/vendor.icloud-viejo
+/node_modules
+/node_modules.nosync
+/node_modules.icloud-viejo
+
+tests/
+storage/logs/
+storage/framework/cache/
+storage/framework/sessions/
+storage/framework/views/

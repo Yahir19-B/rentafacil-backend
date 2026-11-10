@@ -23,7 +23,7 @@ class RecuperarPasswordNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $frontendUrl = rtrim(
-            env('FRONTEND_URL', 'http://localhost:8100'),
+            config('app.frontend_url'),
             '/'
         );
 
@@ -36,7 +36,7 @@ class RecuperarPasswordNotification extends Notification implements ShouldQueue
             ->view('emails.recuperar-password', [
                 'url' => $url,
                 'user' => $notifiable,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
                 'expirationMinutes' => config('auth.passwords.users.expire', 60),
             ]);
     }

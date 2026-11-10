@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\SancionController;
 use App\Http\Controllers\Api\FavoritoController;
 use App\Http\Controllers\Api\MensajeController;
 use App\Http\Controllers\Api\ReporteController;
+use App\Http\Controllers\Api\AdminReporteController;
 use App\Http\Controllers\Api\NotificacionController;
 use App\Http\Controllers\Api\SolicitudRentaController;
 use App\Http\Controllers\Api\ComentarioController;
@@ -20,6 +21,10 @@ use App\Http\Controllers\Api\CalificacionController;
 use App\Http\Controllers\Api\ConversacionController;
 use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\SolicitudAmistadController;
+use App\Http\Controllers\Api\ValoracionController;
+use App\Http\Controllers\Api\RentaController;
+use App\Http\Controllers\Api\PreferenciaBusquedaController;
+use App\Http\Controllers\Api\SolicitudReactivacionController;
 use App\Http\Controllers\Api\AdminPropiedadController;
 use App\Http\Controllers\Api\AdminUsuarioController;
 use App\Http\Controllers\Api\AdminDashboardController;
@@ -27,6 +32,7 @@ use App\Http\Controllers\Api\AdminModeracionController;
 use App\Http\Controllers\Api\AdminRevisionContenidoController;
 use App\Http\Controllers\Api\AdminConfiguracionController;
 use App\Http\Controllers\Api\AdminAdministradoresController;
+use App\Http\Controllers\Api\AvisoController;
 
 Route::get('/', function () {
     return response()->json([
@@ -49,6 +55,8 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])
     ->middleware('throttle:5,1');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])
     ->middleware('throttle:10,1');
+Route::post('/solicitud-reactivacion', [SolicitudReactivacionController::class, 'store'])
+    ->middleware('throttle:5,1');
 Route::post('/reactivate-account', [AuthController::class, 'reactivateAccount']);
 Route::post('/reactivate-account/confirmar', [AuthController::class, 'confirmarReactivacion']);
 
@@ -161,12 +169,42 @@ Route::middleware('role:dueno,admin')->group(function () {
 
     Route::get('/usuarios/buscar', [UsuarioController::class, 'buscar']);
     Route::get('/usuarios/contacto-soporte', [UsuarioController::class, 'contactoSoporte']);
+    // Preferencias de búsqueda y recomendaciones
+    Route::get('/preferencias-busqueda', [PreferenciaBusquedaController::class, 'show']);
+    Route::put('/preferencias-busqueda', [PreferenciaBusquedaController::class, 'update']);
+    Route::get('/propiedades-recomendadas', [PreferenciaBusquedaController::class, 'recomendadas']);
+
+    Route::get('/amigos', [SolicitudAmistadController::class, 'misAmigos']);
     Route::get('/usuarios/{usuario}/estado-amistad', [SolicitudAmistadController::class, 'estado']);
+
+    // Marcar como rentado → confirmación del inquilino
+    Route::get('/propiedades/{propiedad}/candidatos-renta', [RentaController::class, 'candidatos']);
+    Route::get('/propiedades/{propiedad}/rentas', [RentaController::class, 'dePropiedad']);
+    Route::post('/propiedades/{propiedad}/marcar-rentada', [RentaController::class, 'marcar']);
+    Route::get('/rentas/pendientes', [RentaController::class, 'pendientes']);
+    Route::post('/rentas/{renta}/responder', [RentaController::class, 'responder']);
+    Route::post('/rentas/{renta}/cancelar', [RentaController::class, 'cancelar']);
+
+    // Valoraciones a propietarios
+    Route::get('/usuarios/{usuario}/valoraciones', [ValoracionController::class, 'index']);
+    Route::post('/usuarios/{usuario}/valoraciones', [ValoracionController::class, 'store']);
+    Route::delete('/usuarios/{usuario}/valoraciones', [ValoracionController::class, 'destroy']);
     Route::post('/usuarios/{usuario}/solicitud-amistad', [SolicitudAmistadController::class, 'enviar']);
     Route::get('/usuarios/{usuario}', [UsuarioController::class, 'show']);
 
     Route::patch('/solicitudes-amistad/{solicitud}/aceptar', [SolicitudAmistadController::class, 'aceptar']);
     Route::patch('/solicitudes-amistad/{solicitud}/rechazar', [SolicitudAmistadController::class, 'rechazar']);
+    Route::delete('/solicitudes-amistad/{solicitud}', [SolicitudAmistadController::class, 'cancelar']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Avisos del muro
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post('/avisos', [AvisoController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::delete('/avisos/{aviso}', [AvisoController::class, 'destroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -258,6 +296,7 @@ Route::middleware('role:dueno,admin')->group(function () {
         Route::get('/admin/usuarios', [AdminUsuarioController::class, 'index']);
         Route::get('/admin/usuarios/{usuario}', [AdminUsuarioController::class, 'show']);
         Route::post('/admin/usuarios/{usuario}/banear', [AdminUsuarioController::class, 'banear']);
+        Route::post('/admin/usuarios/{usuario}/suspender', [AdminUsuarioController::class, 'suspender']);
         Route::post('/admin/usuarios/{usuario}/desbanear', [AdminUsuarioController::class, 'desbanear']);
 
         Route::get('/admin/revision-contenido', [AdminRevisionContenidoController::class, 'index']);
@@ -265,6 +304,17 @@ Route::middleware('role:dueno,admin')->group(function () {
         Route::post('/admin/revision-contenido/{moderacion}/banear', [AdminRevisionContenidoController::class, 'banear']);
         Route::post('/admin/revision-contenido/{moderacion}/suspender', [AdminRevisionContenidoController::class, 'suspender']);
         Route::post('/admin/revision-contenido/{moderacion}/banear-cuenta', [AdminRevisionContenidoController::class, 'banearCuenta']);
+
+        Route::get('/admin/solicitudes-reactivacion', [SolicitudReactivacionController::class, 'index']);
+        Route::post('/admin/solicitudes-reactivacion/{solicitud}/aprobar', [SolicitudReactivacionController::class, 'aprobar']);
+        Route::post('/admin/solicitudes-reactivacion/{solicitud}/rechazar', [SolicitudReactivacionController::class, 'rechazar']);
+
+        Route::get('/admin/reportes/publicaciones', [AdminReporteController::class, 'index']);
+        Route::get('/admin/reportes/publicaciones/{propiedad}', [AdminReporteController::class, 'show']);
+        Route::post('/admin/reportes/publicaciones/{propiedad}/veredicto', [AdminReporteController::class, 'veredicto']);
+        Route::get('/admin/reportes/usuarios', [AdminReporteController::class, 'usuarios']);
+        Route::get('/admin/reportes/usuarios/{usuario}', [AdminReporteController::class, 'showUsuario']);
+        Route::post('/admin/reportes/usuarios/{usuario}/veredicto', [AdminReporteController::class, 'veredictoUsuario']);
 
         Route::get('/admin/propiedades', [AdminPropiedadController::class, 'index']);
         Route::post('/admin/propiedades/{propiedad}/banear', [AdminPropiedadController::class, 'banear']);

@@ -11,7 +11,7 @@ Route::get('/email/verify/{id}/{hash}', function (
     string $hash
 ) {
     $frontendUrl = rtrim(
-        env('FRONTEND_URL', 'http://localhost:8100'),
+        config('app.frontend_url'),
         '/'
     );
 

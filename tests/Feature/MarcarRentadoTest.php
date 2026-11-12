@@ -67,7 +67,7 @@ class MarcarRentadoTest extends TestCase
         ]);
     }
 
-    public function test_proceso_completo_confirmado_habilita_calificar(): void
+    public function test_proceso_completo_confirmado(): void
     {
         $this->conversar();
 
@@ -80,10 +80,9 @@ class MarcarRentadoTest extends TestCase
         $rentaId = $this->marcar()->assertCreated()->json('id');
         $this->assertDatabaseHas('notificaciones', ['user_id' => $this->inquilino->id, 'tipo' => 'confirmar_renta']);
 
-        // Mientras sigue pendiente no se puede calificar ni volver a marcar.
+        // Mientras sigue pendiente no se puede volver a marcar.
         $this->marcar()->assertStatus(422);
         Sanctum::actingAs($this->inquilino);
-        $this->postJson("/api/usuarios/{$this->dueno->id}/valoraciones", ['estrellas' => 5])->assertStatus(422);
 
         $this->getJson('/api/rentas/pendientes')->assertOk()->assertJsonCount(1)->assertJsonPath('0.propiedad.titulo', 'Cuarto amueblado');
 
@@ -109,7 +108,6 @@ class MarcarRentadoTest extends TestCase
 
         $this->assertNull($this->propiedad->fresh()->rentada_at);
         $this->assertTrue((bool) $this->propiedad->fresh()->disponible);
-        $this->postJson("/api/usuarios/{$this->dueno->id}/valoraciones", ['estrellas' => 5])->assertStatus(422);
 
         // Ya respondida, no se puede volver a responder.
         $this->postJson("/api/rentas/{$rentaId}/responder", ['confirmada' => true])->assertStatus(422);

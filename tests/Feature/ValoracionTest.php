@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Categoria;
 use App\Models\Propiedad;
-use App\Models\Renta;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -18,16 +17,6 @@ class ValoracionTest extends TestCase
     private User $inquilino;
     private Propiedad $propiedad;
 
-    /** Renta confirmada: requisito para poder calificar al propietario. */
-    private function rentaConfirmada(User $inquilino): void
-    {
-        Renta::create([
-            'propiedad_id' => $this->propiedad->id,
-            'propietario_id' => $this->propietario->id,
-            'inquilino_id' => $inquilino->id,
-            'estado' => 'confirmada',
-        ]);
-    }
 
     protected function setUp(): void
     {
@@ -52,7 +41,6 @@ class ValoracionTest extends TestCase
 
     public function test_valorar_actualizar_y_ver_promedio(): void
     {
-        $this->rentaConfirmada($this->inquilino);
         Sanctum::actingAs($this->inquilino);
 
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", [
@@ -66,7 +54,6 @@ class ValoracionTest extends TestCase
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 5])->assertOk();
 
         $otro = User::factory()->create();
-        $this->rentaConfirmada($otro);
         Sanctum::actingAs($otro);
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 2])->assertCreated();
 
@@ -85,18 +72,13 @@ class ValoracionTest extends TestCase
         Sanctum::actingAs($this->propietario);
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 5])->assertStatus(422);
 
-        Sanctum::actingAs($this->propietario);
-        $this->postJson("/api/usuarios/{$this->inquilino->id}/valoraciones", ['estrellas' => 5])
-            ->assertStatus(422);
-
-        // Sin renta confirmada no se puede calificar.
-        Sanctum::actingAs($this->inquilino);
-        $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 5])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Podrás calificar a este propietario cuando confirmen una renta entre ustedes.');
         $this->getJson("/api/usuarios/{$this->propietario->id}/valoraciones")->assertJsonPath('puede_valorar', false);
 
-        $this->rentaConfirmada($this->inquilino);
+        // Cualquier usuario puede calificar a otro, aunque no haya rentado ni publique.
+        $this->postJson("/api/usuarios/{$this->inquilino->id}/valoraciones", ['estrellas' => 5])->assertCreated();
+
+        Sanctum::actingAs($this->inquilino);
+        $this->getJson("/api/usuarios/{$this->propietario->id}/valoraciones")->assertJsonPath('puede_valorar', true);
 
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 6])
             ->assertStatus(422)->assertJsonValidationErrors('estrellas');
@@ -106,7 +88,6 @@ class ValoracionTest extends TestCase
 
     public function test_eliminar_mi_valoracion(): void
     {
-        $this->rentaConfirmada($this->inquilino);
         Sanctum::actingAs($this->inquilino);
 
         $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 1])->assertCreated();
@@ -114,5 +95,11 @@ class ValoracionTest extends TestCase
         $this->deleteJson("/api/usuarios/{$this->propietario->id}/valoraciones")->assertNotFound();
 
         $this->getJson("/api/usuarios/{$this->propietario->id}/valoraciones")->assertJsonPath('total', 0);
+    }
+
+    public function test_sin_sesion_no_se_puede_valorar(): void
+    {
+        $this->postJson("/api/usuarios/{$this->propietario->id}/valoraciones", ['estrellas' => 5])->assertUnauthorized();
+        $this->getJson("/api/usuarios/{$this->propietario->id}/valoraciones")->assertUnauthorized();
     }
 }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Notificacion;
-use App\Models\Renta;
 use App\Models\User;
 use App\Models\Valoracion;
 use App\Services\FiltroPalabrasService;
@@ -12,8 +11,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * "Valorar de una a cinco estrellas a los usuarios propietarios" y
- * "Mostrar las valoraciones recibidas en su perfil".
+ * Valorar de una a cinco estrellas a otros usuarios (cualquiera menos a
+ * uno mismo, con sesión iniciada) y mostrar las valoraciones recibidas
+ * en el perfil.
  */
 class ValoracionController extends Controller
 {
@@ -35,7 +35,6 @@ class ValoracionController extends Controller
             'total' => $total,
             'distribucion' => $distribucion,
             'puede_valorar' => $this->puedeValorar($request->user(), $usuario) === null,
-            'es_propietario' => $usuario->propiedades()->exists(),
             'mi_valoracion' => $valoraciones->firstWhere('calificador_id', $request->user()->id),
             'valoraciones' => $valoraciones->take(50)->values(),
         ]);
@@ -108,18 +107,10 @@ class ValoracionController extends Controller
     /** Devuelve el motivo por el que no se puede valorar, o null si sí se puede. */
     private function puedeValorar(User $yo, User $usuario): ?string
     {
+        // Cualquier usuario con sesión puede calificar a cualquier otro,
+        // excepto su propia cuenta.
         if ($yo->id === $usuario->id) {
             return 'No puedes valorarte a ti mismo.';
-        }
-
-        // Solo quien rentó y confirmó la renta con este propietario.
-        $rentaConfirmada = Renta::where('propietario_id', $usuario->id)
-            ->where('inquilino_id', $yo->id)
-            ->where('estado', 'confirmada')
-            ->exists();
-
-        if (!$rentaConfirmada) {
-            return 'Podrás calificar a este propietario cuando confirmen una renta entre ustedes.';
         }
 
         return null;

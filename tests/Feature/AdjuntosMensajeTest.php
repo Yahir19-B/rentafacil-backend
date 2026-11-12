@@ -80,4 +80,11 @@ class AdjuntosMensajeTest extends TestCase
         $this->enviar(['adjuntos' => [['url' => 'https://otro.com/x.png'] + $this->adjunto('imagen', 'image/png', 1)]])
             ->assertStatus(422)->assertJsonValidationErrors('adjuntos.0.url');
     }
+
+    public function test_nota_de_voz_grabada(): void
+    {
+        $this->enviar(['adjuntos' => [$this->adjunto('audio', 'audio/webm', 1, 12.5)]])
+            ->assertCreated()
+            ->assertJsonPath('mensaje.adjuntos.0.mime', 'audio/webm');
+    }
 }

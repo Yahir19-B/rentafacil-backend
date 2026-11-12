@@ -26,7 +26,11 @@ class Mensaje extends Model
     public const MAX_SEGUNDOS = 300;
     public const LIMITES_ADJUNTOS = [
         'imagen' => ['mimes' => ['image/jpeg', 'image/png', 'image/webp'], 'max_bytes' => 10 * 1024 * 1024],
-        'audio' => ['mimes' => ['audio/mpeg', 'audio/mp3'], 'max_bytes' => 10 * 1024 * 1024],
+        // MP3 y notas de voz grabadas en la app (WebM/Opus, Ogg, MP4/AAC).
+        'audio' => [
+            'mimes' => ['audio/mpeg', 'audio/mp3', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/x-m4a'],
+            'max_bytes' => 10 * 1024 * 1024,
+        ],
         'video' => ['mimes' => ['video/mp4', 'video/webm'], 'max_bytes' => 50 * 1024 * 1024],
     ];
 

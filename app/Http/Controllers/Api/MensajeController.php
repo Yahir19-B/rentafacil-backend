@@ -242,7 +242,7 @@ class MensajeController extends Controller
             $limite = Mensaje::LIMITES_ADJUNTOS[$adjunto['tipo']];
 
             if (!in_array($adjunto['mime'], $limite['mimes'], true)) {
-                return 'Formato no permitido: usa JPG, PNG o WEBP para imágenes, MP3 para audio y MP4 o WEBM para video.';
+                return 'Formato no permitido: usa JPG, PNG o WEBP para imágenes, MP3 o nota de voz para audio y MP4 o WEBM para video.';
             }
 
             if ($adjunto['tamano'] > $limite['max_bytes']) {

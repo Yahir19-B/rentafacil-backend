@@ -26,3 +26,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/vendor.nosync
+/vendor.icloud-viejo
+/node_modules.nosync
+/node_modules.icloud-viejo

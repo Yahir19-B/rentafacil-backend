@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:8100'),
+
+    'logo_email_url' => env('LOGO_EMAIL_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

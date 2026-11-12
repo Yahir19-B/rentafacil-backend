@@ -39,7 +39,7 @@ class InfraccionRegistradaNotification extends Notification implements ShouldQue
                 'limite' => $this->limite,
                 'suspendido' => $this->suspendido,
                 'diasSuspension' => $this->diasSuspension,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
             ]);
     }
 

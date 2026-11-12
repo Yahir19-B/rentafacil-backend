@@ -33,7 +33,7 @@ class CredencialesAdminNotification extends Notification implements ShouldQueue
                 'user' => $notifiable,
                 'email' => $this->email,
                 'password' => $this->password,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
             ]);
     }
 

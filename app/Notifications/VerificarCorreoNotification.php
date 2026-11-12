@@ -33,7 +33,7 @@ class VerificarCorreoNotification extends Notification implements ShouldQueue
             ->view('emails.verificar-correo', [
                 'url' => $url,
                 'user' => $notifiable,
-                'logoUrl' => env('LOGO_EMAIL_URL'),
+                'logoUrl' => config('app.logo_email_url'),
             ]);
     }
 

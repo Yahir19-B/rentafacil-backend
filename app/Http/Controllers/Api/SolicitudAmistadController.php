@@ -150,6 +150,51 @@ class SolicitudAmistadController extends Controller
     }
 
     /**
+     * Amigos del usuario autenticado (solicitudes aceptadas), para
+     * compartir publicaciones dentro de la plataforma.
+     */
+    public function misAmigos(Request $request): JsonResponse
+    {
+        $amigos = User::whereIn('id', $request->user()->idsAmigos())
+            ->whereNotIn('status', ['suspendido', 'baneado'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'foto_perfil']);
+
+        return response()->json($amigos);
+    }
+
+    /**
+     * Cancelar una solicitud que el usuario envió y sigue pendiente.
+     * Se borra para que después se pueda volver a enviar.
+     */
+    public function cancelar(Request $request, SolicitudAmistad $solicitud): JsonResponse
+    {
+        if ($solicitud->remitente_id !== $request->user()->id) {
+            return response()->json([
+                'message' => 'Solo quien envió la solicitud puede cancelarla.'
+            ], 403);
+        }
+
+        if ($solicitud->estado !== 'pendiente') {
+            return response()->json([
+                'message' => 'Esta solicitud ya fue respondida.'
+            ], 422);
+        }
+
+        // El destinatario ya no debe ver el aviso de una solicitud que no existe.
+        Notificacion::where('user_id', $solicitud->destinatario_id)
+            ->where('tipo', 'solicitud_amistad')
+            ->where('data->solicitud_id', $solicitud->id)
+            ->delete();
+
+        $solicitud->delete();
+
+        return response()->json([
+            'message' => 'Solicitud cancelada.'
+        ]);
+    }
+
+    /**
      * Estado de la relación entre el usuario autenticado y $usuario.
      */
     public function estado(Request $request, User $usuario): JsonResponse

@@ -10,3 +10,7 @@ storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
 database/database.sqlite
+vendor.nosync
+vendor.icloud-viejo
+node_modules.nosync
+node_modules.icloud-viejo

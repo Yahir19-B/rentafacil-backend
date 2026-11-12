@@ -22,6 +22,9 @@ class Configuracion extends Model
      */
     public static function actual(): self
     {
-        return static::query()->firstOrCreate([]);
+        $configuracion = static::query()->firstOrCreate([]);
+
+        // Recién creada no trae los valores por defecto de la columna (p. ej. limite_strikes = 3).
+        return $configuracion->wasRecentlyCreated ? $configuracion->refresh() : $configuracion;
     }
 }

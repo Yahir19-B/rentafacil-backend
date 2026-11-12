@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Notificacion;
 use App\Models\Sancion;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -128,6 +129,63 @@ class AdminUsuarioController extends Controller
             'fecha_inicio' => now(),
             'fecha_fin' => null,
             'activa' => true,
+        ]);
+
+        return response()->json($this->resumen($usuario->fresh('role')));
+    }
+
+    /**
+     * Suspensión manual con duración: la cuenta se reactiva sola al
+     * iniciar sesión cuando pasa fecha_fin (AuthController::login).
+     */
+    public function suspender(Request $request, User $usuario)
+    {
+        $data = $request->validate([
+            'motivo' => 'required|string|max:1000',
+            'dias' => 'required|integer|min:1|max:365',
+        ], [
+            'dias.min' => 'La suspensión debe durar al menos 1 día.',
+            'dias.max' => 'La suspensión puede durar como máximo 365 días.',
+        ]);
+
+        if ($usuario->role?->nombre === 'admin') {
+            return response()->json(['message' => 'No puedes suspender a otro administrador.'], 422);
+        }
+
+        if ($usuario->status === 'baneado') {
+            return response()->json(['message' => 'La cuenta ya está baneada.'], 422);
+        }
+
+        $dias = (int) $data['dias'];
+
+        // Una suspensión nueva reemplaza a la anterior.
+        $usuario->sanciones()
+            ->where('tipo', 'suspension')
+            ->where('activa', true)
+            ->update(['activa' => false]);
+
+        $usuario->update(['status' => 'suspendido']);
+        $usuario->tokens()->delete();
+
+        Sancion::create([
+            'user_id' => $usuario->id,
+            'admin_id' => Auth::id(),
+            'tipo' => 'suspension',
+            'motivo' => $data['motivo'],
+            'fecha_inicio' => now(),
+            'fecha_fin' => now()->addDays($dias),
+            'activa' => true,
+        ]);
+
+        Notificacion::create([
+            'user_id' => $usuario->id,
+            'tipo' => 'cuenta_suspendida',
+            'titulo' => 'Tu cuenta fue suspendida',
+            'mensaje' => 'Un administrador suspendió tu cuenta por ' . ($dias === 1 ? '1 día' : "{$dias} días")
+                . ". Motivo: {$data['motivo']}",
+            'data' => ['dias' => $dias],
+            'leida' => false,
+            'leida_at' => null,
         ]);
 
         return response()->json($this->resumen($usuario->fresh('role')));
